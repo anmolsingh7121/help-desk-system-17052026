@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Help Desk - Ticket Management System</title>
+    <style>
+        :root {
+            --primary-color: #0057b8;
+            --primary-hover: #00438f;
+            --bg-color: #f4f6f8;
+            --surface-color: #ffffff;
+            --text-main: #333333;
+            --text-muted: #666666;
+            --border-color: #e0e0e0;
+            
+            --color-p1: #d32f2f;
+            --color-p2: #f57c00;
+            --color-p3: #1976d2;
+            --color-p4: #388e3c;
+            
+            --color-open: #1976d2;
+            --color-inprogress: #f57c00;
+            --color-escalated: #d32f2f;
+            --color-resolved: #388e3c;
+            --color-closed: #757575;
+
+            --border-radius: 8px;
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --font-mono: 'Courier New', Courier, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+        }
+
+        /* Navbar */
+        nav {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        nav .logo {
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
+        nav .nav-links button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1rem;
+            margin-left: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+        nav .nav-links button:hover {
+            text-decoration: underline;
+        }
+        nav .nav-links button.btn-new-ticket {
+            background-color: white;
+            color: var(--primary-color);
+            border-radius: var(--border-radius);
+            padding: 0.5rem 1rem;
+            font-weight: bold;
+            text-decoration: none !important;
+        }
+
+        /* Layout */
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .view-section {
+            display: none;
+        }
+        .view-section.active {
+            display: block;
+        }
+
+        /* Dashboard Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .stat-card h3 {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .stat-card.breached .value {
+            color: var(--color-p1);
+        }
+
+        /* Tables */
+        .table-container {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            background-color: #f9fafb;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+            cursor: pointer;
+        }
+        tr.sla-breached {
+            background-color: #ffebee;
+        }
+        tr.sla-breached:hover {
+            background-color: #ffcdd2;
+        }
+        .ticket-num {
+            font-family: var(--font-mono);
+            font-weight: bold;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: white;
+        }
+        .badge.p1 { background-color: var(--color-p1); }
+        .badge.p2 { background-color: var(--color-p2); }
+        .badge.p3 { background-color: var(--color-p3); }
+        .badge.p4 { background-color: var(--color-p4); }
+        
+        .badge.open { background-color: var(--color-open); }
+        .badge.inprogress { background-color: var(--color-inprogress); }
+        .badge.escalated { background-color: var(--color-escalated); }
+        .badge.resolved { background-color: var(--color-resolved); }
+        .badge.closed { background-color: var(--color-closed); }
+        
+        .badge.tier { background-color: #424242; }
+
+        /* Controls / Filters */
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+        .filters select {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-right: 0.5rem;
+        }
+        button.action-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button.action-btn:hover {
+            background-color: var(--primary-hover);
+        }
+
+        /* Modals */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal-content {
+            background-color: var(--surface-color);
+            border-radius: var(--border-radius);
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 { font-size: 1.25rem; }
+        .close-btn {
+            background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);
+        }
+        .modal-body {
+            padding: 1.5rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block; font-weight: bold; margin-bottom: 0.5rem;
+        }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; font-family: inherit;
+        }
+        
+        /* Detail Modal specific */
+        .detail-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;
+        }
+        .detail-item strong { display: block; font-size: 0.85rem; color: var(--text-muted); }
+        .description-box {
+            background-color: #f9fafb; padding: 1rem; border: 1px solid var(--border-color); border-radius: 4px; margin-bottom: 1.5rem;
+            white-space: pre-wrap;
+        }
+        .action-row {
+            display: flex; gap: 1rem; align-items: center; padding: 1rem; background-color: #f9fafb; border-radius: 4px; border: 1px solid var(--border-color); margin-bottom: 1.5rem;
+        }
+        
+        .activity-log {
+            margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1rem;
+        }
+        .log-entry {
+            margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #eee;
+        }
+        .log-meta { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+        .log-note { font-size: 0.95rem; }
+
+        /* Toasts */
+        #toast-container {
+            position: fixed; bottom: 20px; right: 20px; z-index: 2000;
+        }
+        .toast {
+            color: white; padding: 1rem 1.5rem; border-radius: 4px; margin-top: 0.5rem; opacity: 0; transition: opacity 0.3s;
+        }
+        .toast.success { background-color: var(--color-p4); }
+        .toast.error { background-color: var(--color-p1); }
+        .toast.show { opacity: 1; }
+
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="logo">IT Service Desk</div>
+        <div class="nav-links">
+            <button onclick="switchView('dashboard')">Dashboard</button>
+            <button onclick="switchView('all-tickets')">All Tickets</button>
+            <button class="btn-new-ticket" onclick="openCreateModal()">+ New Ticket</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Dashboard View -->
+        <div id="view-dashboard" class="view-section active">
+            <div class="controls">
+                <h2>Dashboard Overview</h2>
+                <div>
+                    <button class="action-btn" onclick="runSLA()">Run SLA Escalation</button>
+                    <button class="action-btn" onclick="loadDashboard()">Refresh</button>
+                </div>
+            </div>
+            
+            <div class="stats-grid" id="stats-container">
+                <!-- Populated by JS -->
+            </div>
+
+            <h3>Recent Tickets</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ticket #</th>
+                            <th>Title</th>
+                            <th>Category</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Tier</th>
+                            <th>SLA Remaining</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recent-tickets-body">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- All Tickets View -->
+        <div id="view-all-tickets" class="view-section">
+            <div class="controls">
+                <h2>All Tickets</h2>
+                <div class="filters">
+                    <select id="filter-status" onchange="loadAllTickets()">
+                        <option value="">All Statuses</option>
+                        <option value="Open">Open</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Escalated">Escalated</option>
+                        <option value="Resolved">Resolved</option>
+                        <option value="Closed">Closed</option>
+                    </select>
+                    <select id="filter-priority" onchange="loadAllTickets()">
+                        <option value="">All Priorities</option>
+                        <option value="P1">P1</option>
+                        <option value="P2">P2</option>
+                        <option value="P3">P3</option>
+                        <option value="P4">P4</option>
+                    </select>
+                    <select id="filter-category" onchange="loadAllTickets()">
+                        <option value="">All Categories</option>
+                        <option value="Hardware">Hardware</option>
+                        <option value="Software">Software</option>
+                        <option value="Network">Network</option>
+                        <option value="Access">Access</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ticket #</th>
+                            <th>Title</th>
+                            <th>Category</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Tier</th>
+                            <th>SLA Remaining</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="all-tickets-body">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Ticket Modal -->
+    <div id="modal-create" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New Ticket</h2>
+                <button class="close-btn" onclick="closeModal('modal-create')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="form-create" onsubmit="submitTicket(event)">
+                    <div class="form-group">
+                        <label>Title</label>
+                        <input type="text" id="create-title" required minlength="5" placeholder="Brief issue summary">
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="create-category" required>
+                            <option value="Hardware">Hardware</option>
+                            <option value="Software">Software</option>
+                            <option value="Network">Network</option>
+                            <option value="Access">Access</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Priority</label>
+                        <select id="create-priority" required>
+                            <option value="P1">P1 — Critical (1 hr SLA)</option>
+                            <option value="P2">P2 — High (4 hr SLA)</option>
+                            <option value="P3">P3 — Medium (8 hr SLA)</option>
+                            <option value="P4">P4 — Low (24 hr SLA)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="create-desc" rows="5" required minlength="10" placeholder="Detailed description of the issue..."></textarea>
+                    </div>
+                    <button type="submit" class="action-btn" style="width: 100%">Submit Ticket</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ticket Detail Modal -->
+    <div id="modal-detail" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="detail-header-title">INC0000000</h2>
+                <div>
+                    <span id="detail-badge-priority" class="badge p1">P1</span>
+                    <span id="detail-badge-status" class="badge open">Open</span>
+                    <span id="detail-badge-tier" class="badge tier">L1</span>
+                </div>
+                <button class="close-btn" onclick="closeModal('modal-detail')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h3 id="detail-title" style="margin-bottom: 1rem;">Ticket Title</h3>
+                
+                <div class="detail-grid">
+                    <div class="detail-item"><strong>Category:</strong> <span id="detail-category"></span></div>
+                    <div class="detail-item"><strong>Requester:</strong> <span id="detail-requester"></span></div>
+                    <div class="detail-item"><strong>Assigned To:</strong> <span id="detail-assigned"></span></div>
+                    <div class="detail-item"><strong>Created:</strong> <span id="detail-created"></span></div>
+                    <div class="detail-item"><strong>SLA Deadline:</strong> <span id="detail-sla"></span></div>
+                    <div class="detail-item"><strong>Resolved At:</strong> <span id="detail-resolved"></span></div>
+                </div>
+
+                <div class="description-box" id="detail-desc"></div>
+
+                <div class="action-row">
+                    <div>
+                        <label style="font-weight:bold; font-size: 0.85rem;">Update Status:</label>
+                        <select id="detail-update-status" style="padding: 0.25rem;">
+                            <option value="Open">Open</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Resolved">Resolved</option>
+                            <option value="Closed">Closed</option>
+                        </select>
+                    </div>
+                    <button class="action-btn" onclick="updateTicketStatus()">Apply</button>
+                    <button class="action-btn" style="background-color: var(--color-p1); margin-left: auto;" onclick="escalateTicket()">Escalate</button>
+                </div>
+
+                <div class="activity-log">
+                    <h3 style="margin-bottom: 1rem;">Activity Log</h3>
+                    <div id="detail-logs">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+        const API_URL = '/api/tickets';
+        let currentTicketId = null;
+
+        // Utility: Show Toast
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // View Switching
+        function switchView(viewName) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById(`view-${viewName}`).classList.add('active');
+            if (viewName === 'dashboard') loadDashboard();
+            if (viewName === 'all-tickets') loadAllTickets();
+        }
+
+        // Formatting utilities
+        function formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            return new Date(dateStr).toLocaleString();
+        }
+
+        function getPriorityClass(p) { return p ? p.toLowerCase() : ''; }
+        function getStatusClass(s) { return s ? s.replace(' ', '').toLowerCase() : ''; }
+
+        function renderTableRow(ticket) {
+            const isBreached = ticket.sla_breached ? 'sla-breached' : '';
+            return `
+                <tr class="${isBreached}" onclick="openDetailModal(${ticket.id})">
+                    <td class="ticket-num">${ticket.ticket_number}</td>
+                    <td>${ticket.title}</td>
+                    <td>${ticket.category}</td>
+                    <td><span class="badge ${getPriorityClass(ticket.priority)}">${ticket.priority}</span></td>
+                    <td><span class="badge ${getStatusClass(ticket.status)}">${ticket.status}</span></td>
+                    <td><span class="badge tier">${ticket.support_tier}</span></td>
+                    <td style="${ticket.sla_breached ? 'color: red; font-weight: bold;' : ''}">
+                        ${ticket.sla_breached ? 'BREACHED' : ticket.sla_minutes_remaining + ' mins'}
+                    </td>
+                    <td>${new Date(ticket.created_at).toLocaleDateString()}</td>
+                </tr>
+            `;
+        }
+
+        // Load Dashboard
+        async function loadDashboard() {
+            try {
+                // Load Stats
+                const statsRes = await fetch(`${API_URL}/stats`);
+                const stats = await statsRes.json();
+                
+                document.getElementById('stats-container').innerHTML = `
+                    <div class="stat-card"><h3>Total Tickets</h3><div class="value">${stats.total || 0}</div></div>
+                    <div class="stat-card"><h3>Open</h3><div class="value">${stats.open_tickets || 0}</div></div>
+                    <div class="stat-card"><h3>In Progress</h3><div class="value">${stats.in_progress || 0}</div></div>
+                    <div class="stat-card"><h3>Escalated</h3><div class="value">${stats.escalated || 0}</div></div>
+                    <div class="stat-card"><h3>Resolved</h3><div class="value">${stats.resolved || 0}</div></div>
+                    <div class="stat-card breached"><h3>SLA Breached</h3><div class="value">${stats.sla_breached || 0}</div></div>
+                `;
+
+                // Load Recent
+                const tRes = await fetch(`${API_URL}`);
+                const tickets = await tRes.json();
+                const tbody = document.getElementById('recent-tickets-body');
+                tbody.innerHTML = tickets.slice(0, 10).map(renderTableRow).join('');
+            } catch (err) {
+                showToast('Failed to load dashboard', 'error');
+            }
+        }
+
+        // Load All Tickets
+        async function loadAllTickets() {
+            try {
+                const status = document.getElementById('filter-status').value;
+                const priority = document.getElementById('filter-priority').value;
+                const category = document.getElementById('filter-category').value;
+                
+                const params = new URLSearchParams();
+                if(status) params.append('status', status);
+                if(priority) params.append('priority', priority);
+                if(category) params.append('category', category);
+
+                const res = await fetch(`${API_URL}?${params.toString()}`);
+                const tickets = await res.json();
+                
+                document.getElementById('all-tickets-body').innerHTML = tickets.map(renderTableRow).join('');
+            } catch (err) {
+                showToast('Failed to load tickets', 'error');
+            }
+        }
+
+        // Modals
+        function openCreateModal() {
+            document.getElementById('form-create').reset();
+            document.getElementById('modal-create').classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        async function openDetailModal(id) {
+            try {
+                currentTicketId = id;
+                const res = await fetch(`${API_URL}/${id}`);
+                const data = await res.json();
+                const { ticket, logs } = data;
+
+                document.getElementById('detail-header-title').textContent = ticket.ticket_number;
+                
+                const pBadge = document.getElementById('detail-badge-priority');
+                pBadge.className = `badge ${getPriorityClass(ticket.priority)}`;
+                pBadge.textContent = ticket.priority;
+
+                const sBadge = document.getElementById('detail-badge-status');
+                sBadge.className = `badge ${getStatusClass(ticket.status)}`;
+                sBadge.textContent = ticket.status;
+
+                document.getElementById('detail-badge-tier').textContent = ticket.support_tier;
+
+                document.getElementById('detail-title').textContent = ticket.title;
+                document.getElementById('detail-category').textContent = ticket.category;
+                document.getElementById('detail-requester').textContent = ticket.requester_name || 'N/A';
+                document.getElementById('detail-assigned').textContent = ticket.assigned_to_name || 'Unassigned';
+                document.getElementById('detail-created').textContent = formatDate(ticket.created_at);
+                document.getElementById('detail-sla').textContent = formatDate(ticket.sla_deadline);
+                document.getElementById('detail-resolved').textContent = formatDate(ticket.resolved_at);
+                document.getElementById('detail-desc').textContent = ticket.description;
+
+                document.getElementById('detail-update-status').value = ticket.status;
+
+                // Render Logs
+                const logsHtml = logs.map(l => `
+                    <div class="log-entry">
+                        <div class="log-meta"><strong>${l.action}</strong> by ${l.performed_by_name || 'System'} on ${formatDate(l.created_at)}</div>
+                        <div class="log-note">${l.note}</div>
+                    </div>
+                `).join('');
+                document.getElementById('detail-logs').innerHTML = logsHtml;
+
+                document.getElementById('modal-detail').classList.add('active');
+            } catch (err) {
+                showToast('Failed to load ticket details', 'error');
+            }
+        }
+
+        // Actions
+        async function submitTicket(e) {
+            e.preventDefault();
+            const payload = {
+                title: document.getElementById('create-title').value,
+                category: document.getElementById('create-category').value,
+                priority: document.getElementById('create-priority').value,
+                description: document.getElementById('create-desc').value
+            };
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if(res.ok) {
+                    showToast('Ticket created successfully!');
+                    closeModal('modal-create');
+                    loadDashboard();
+                    if(document.getElementById('view-all-tickets').classList.contains('active')) loadAllTickets();
+                } else {
+                    const err = await res.json();
+                    showToast(err.error || 'Failed to create ticket', 'error');
+                }
+            } catch(e) { showToast('Network error', 'error'); }
+        }
+
+        async function updateTicketStatus() {
+            if(!currentTicketId) return;
+            const status = document.getElementById('detail-update-status').value;
+            try {
+                const res = await fetch(`${API_URL}/${currentTicketId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status })
+                });
+                if(res.ok) {
+                    showToast('Status updated successfully');
+                    openDetailModal(currentTicketId);
+                    loadDashboard();
+                    loadAllTickets();
+                }
+            } catch(e) { showToast('Failed to update status', 'error'); }
+        }
+
+        async function escalateTicket() {
+            if(!currentTicketId) return;
+            try {
+                const res = await fetch(`${API_URL}/${currentTicketId}/escalate`, { method: 'POST' });
+                if(res.ok) {
+                    showToast('Ticket escalated');
+                    openDetailModal(currentTicketId);
+                    loadDashboard();
+                    loadAllTickets();
+                }
+            } catch(e) { showToast('Failed to escalate ticket', 'error'); }
+        }
+
+        async function runSLA() {
+            try {
+                const res = await fetch(`${API_URL}/sla/run-escalation`, { method: 'POST' });
+                if(res.ok) {
+                    showToast('SLA escalation rule triggered');
+                    loadDashboard();
+                    if(document.getElementById('view-all-tickets').classList.contains('active')) loadAllTickets();
+                }
+            } catch(e) { showToast('Failed to run SLA escalation', 'error'); }
+        }
+
+        // Init
+        window.onload = loadDashboard;
+    </script>
+</body>
+</html>

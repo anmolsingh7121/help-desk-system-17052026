@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Help Desk - System Documentation</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 40px;
+            color: #333;
+            line-height: 1.6;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #0057b8;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #0057b8;
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+            margin-top: 5px;
+        }
+        .container {
+            display: flex;
+            gap: 40px;
+            align-items: flex-start;
+        }
+        .left-column {
+            flex: 1;
+        }
+        .right-column {
+            flex: 1;
+            background-color: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+        }
+        h2 {
+            color: #0057b8;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+            margin-top: 0;
+        }
+        h3 {
+            color: #444;
+            margin-bottom: 5px;
+        }
+        p, li {
+            font-size: 0.95em;
+            color: #444;
+        }
+        ul {
+            padding-left: 20px;
+            margin-top: 5px;
+        }
+        .badge {
+            display: inline-block;
+            background: #eee;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+            color: #d32f2f;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        
+        /* Print Styles to ensure PDF looks good */
+        @media print {
+            body {
+                padding: 0;
+            }
+            .container {
+                display: flex;
+            }
+            .right-column {
+                background-color: transparent;
+                border-left: 2px solid #e0e0e0;
+                border-top: none;
+                border-right: none;
+                border-bottom: none;
+                border-radius: 0;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>IT Help Desk Management System</h1>
+        <p>Technical Documentation, Architecture & Drawbacks Analysis</p>
+    </div>
+
+    <div class="container">
+        
+        <!-- LEFT COLUMN -->
+        <div class="left-column">
+            <div class="section">
+                <h2>How The System Works</h2>
+                <p>This system operates on a 3-tier architecture to track IT incidents and enforce SLA deadlines automatically.</p>
+                
+                <h3>1. The Frontend (User Interface)</h3>
+                <p>A Single Page Application (SPA) built purely with HTML, CSS, and Vanilla JavaScript. It displays real-time statistics, dynamically highlights SLA-breached tickets in red, and provides interactive Modals to create or update tickets without reloading the browser.</p>
+
+                <h3>2. The Backend (Node.js API)</h3>
+                <p>The middle layer powered by Node.js and Express. It receives HTTP requests, executes business logic, and communicates with the database via a connection pool. It also runs a silent <strong>Cron Job</strong> every 5 minutes to trigger the SLA Escalation procedure.</p>
+
+                <h3>3. The Database (MySQL)</h3>
+                <p>The permanent storage layer containing Tables and Stored Procedures. It manages relations between Users, Tickets, and the chronological Activity Logs.</p>
+
+                <h3>The Incident Lifecycle</h3>
+                <ul>
+                    <li><strong>Creation:</strong> A ticket is submitted. The Database runs <span class="badge">set_sla_deadline</span> to calculate exact resolution deadlines (1, 4, 8, or 24 hours).</li>
+                    <li><strong>Tracking:</strong> Any status or assignment change automatically inserts an audit trail into the Activity Log.</li>
+                    <li><strong>Escalation:</strong> If a ticket is unresolved past its deadline, the background worker invokes <span class="badge">escalate_breached_tickets</span> to automatically bump the support tier (L1 → L2 → L3) and flag it.</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>System Drawbacks & Limitations</h2>
+                <p>While this prototype demonstrates deep full-stack proficiency, it has intentional limitations regarding enterprise readiness:</p>
+                
+                <h3>1. Lack of Authentication</h3>
+                <p>The system blindly trusts the frontend. User IDs (like the Requester ID or Agent ID) are currently hardcoded. In a production environment, an Authentication flow (like JWTs or Sessions) must be implemented.</p>
+
+                <h3>2. No Database Pagination</h3>
+                <p>The "All Tickets" view currently queries and returns every single ticket in the database. For tens of thousands of tickets, this will crash the browser. We would need to implement SQL `LIMIT` and `OFFSET` pagination.</p>
+
+                <h3>3. Vanilla JS Maintenance Overhead</h3>
+                <p>Using pure JavaScript proves a strong grasp of the DOM, but managing state across a large app without a framework like React or Vue.js eventually leads to unmanageable code complexity.</p>
+
+                <h3>4. Cron Job Scalability</h3>
+                <p>The 5-minute `setInterval` works on a single server instance. If the backend is horizontally scaled across 5 servers, all 5 would attempt to escalate tickets simultaneously, causing race conditions. A dedicated message queue (like Redis) is required.</p>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="right-column">
+            <h2>Implementation Walkthrough</h2>
+            
+            <div class="section">
+                <h3>Database Schema Built</h3>
+                <ul>
+                    <li>Created <strong>3 relational tables</strong>: <code>users</code>, <code>tickets</code>, <code>ticket_logs</code>.</li>
+                    <li>Implemented <code>ON DELETE CASCADE</code> so removing a ticket automatically cleans its logs.</li>
+                    <li>Created <strong>2 Stored Procedures</strong> to offload complex SLA math to the MySQL layer.</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h3>Backend API Routes</h3>
+                <p>Developed exactly 7 RESTful endpoints:</p>
+                <ul>
+                    <li><code>GET /api/tickets</code> - Fetches tickets with SQL JOINs to populate user names dynamically.</li>
+                    <li><code>GET /api/tickets/stats</code> - Runs aggregate counts (Total, Open, Escalated) for the dashboard.</li>
+                    <li><code>POST /api/tickets</code> - Validates descriptions and handles the ticket creation flow.</li>
+                    <li><code>PATCH /api/tickets/:id</code> - Modifies status, assigns users, and auto-generates activity logs.</li>
+                    <li><code>POST /api/tickets/sla/run-escalation</code> - Manual override to trigger the breach logic.</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h3>Frontend Engineering</h3>
+                <ul>
+                    <li>Enforced strict CSS rules using <strong>Custom Properties (Variables)</strong> for theme colors without external libraries.</li>
+                    <li>Engineered custom CSS Modals and a <strong>Toast Notification</strong> system for user feedback.</li>
+                    <li>Handled complex DOM string interpolation to render dynamic tables.</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h3>Setup & Execution</h3>
+                <ol>
+                    <li><code>mysql -u root -p < schema.sql</code> (Creates DB)</li>
+                    <li>Update the <code>.env</code> file with MySQL credentials.</li>
+                    <li><code>npm install</code> (Installs Express & MySQL2)</li>
+                    <li><code>npm start</code> (Boots the server)</li>
+                    <li>Open <code>index.html</code> in a browser!</li>
+                </ol>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>
