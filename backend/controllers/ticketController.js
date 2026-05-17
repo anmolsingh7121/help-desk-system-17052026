@@ -259,7 +259,7 @@ exports.processSLAEscalations = async () => {
             await pool.query(`
                 INSERT INTO ticket_logs (ticket_id, action, performed_by, note) 
                 VALUES (?, 'System Escalation', 1, ?)
-            `, [ticket.id, \`SLA Breached. Automatically escalated to next tier from \${ticket.support_tier}\`]);
+            `, [ticket.id, `SLA Breached. Automatically escalated to next tier from ${ticket.support_tier}`]);
         }
     } catch (error) {
         console.error('Error processing SLA escalations in backend:', error);
