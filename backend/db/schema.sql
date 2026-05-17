@@ -1,5 +1,5 @@
 CREATE DATABASE IF NOT EXISTS helpdesk_db;
-USE helpdesk_db;
+USE test;
 
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (
@@ -42,55 +42,7 @@ CREATE TABLE IF NOT EXISTS ticket_logs (
     FOREIGN KEY (performed_by) REFERENCES users(id)
 );
 
--- Stored Procedures
-
--- 1. set_sla_deadline
-DELIMITER //
-CREATE PROCEDURE IF NOT EXISTS set_sla_deadline(IN p_ticket_id INT, IN p_priority VARCHAR(2))
-BEGIN
-    DECLARE v_hours INT;
-    
-    IF p_priority = 'P1' THEN SET v_hours = 1;
-    ELSEIF p_priority = 'P2' THEN SET v_hours = 4;
-    ELSEIF p_priority = 'P3' THEN SET v_hours = 8;
-    ELSEIF p_priority = 'P4' THEN SET v_hours = 24;
-    ELSE SET v_hours = 24;
-    END IF;
-    
-    UPDATE tickets 
-    SET sla_deadline = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL v_hours HOUR)
-    WHERE id = p_ticket_id;
-END //
-DELIMITER ;
-
--- 2. escalate_breached_tickets
-DELIMITER //
-CREATE PROCEDURE IF NOT EXISTS escalate_breached_tickets()
-BEGIN
-    -- Temporary table to hold breached ticket IDs to add logs later
-    CREATE TEMPORARY TABLE IF NOT EXISTS breached_tickets AS
-    SELECT id, support_tier FROM tickets 
-    WHERE sla_deadline < CURRENT_TIMESTAMP 
-    AND status IN ('Open', 'In Progress');
-
-    -- Insert logs for escalations (Assuming user ID 1 is Admin/System)
-    INSERT INTO ticket_logs (ticket_id, action, performed_by, note)
-    SELECT id, 'System Escalation', 1, CONCAT('SLA Breached. Automatically escalated to next tier from ', support_tier)
-    FROM breached_tickets;
-
-    -- Update tickets
-    UPDATE tickets
-    SET status = 'Escalated',
-        support_tier = CASE 
-            WHEN support_tier = 'L1' THEN 'L2'
-            WHEN support_tier = 'L2' THEN 'L3'
-            ELSE 'L3'
-        END
-    WHERE id IN (SELECT id FROM breached_tickets);
-    
-    DROP TEMPORARY TABLE IF EXISTS breached_tickets;
-END //
-DELIMITER ;
+-- Stored Procedures removed (Logic migrated to Node.js backend due to TiDB Serverless limitations)
 
 -- Seed Data (Ignore duplicates on multiple runs)
 INSERT IGNORE INTO users (id, name, email, role) VALUES 

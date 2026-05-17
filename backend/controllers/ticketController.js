@@ -130,6 +130,9 @@ exports.createTicket = async (req, res) => {
         if (!validCategories.includes(category)) return res.status(400).json({ error: 'Invalid category' });
         if (!validPriorities.includes(priority)) return res.status(400).json({ error: 'Invalid priority' });
 
+        // Calculate SLA deadline natively
+        const slaHours = { 'P1': 1, 'P2': 4, 'P3': 8, 'P4': 24 }[priority] || 24;
+
         // Auto-generate ticket number (INC + padding)
         const [lastTicket] = await pool.query('SELECT id FROM tickets ORDER BY id DESC LIMIT 1');
         const nextId = lastTicket.length ? lastTicket[0].id + 1 : 1;
@@ -137,16 +140,12 @@ exports.createTicket = async (req, res) => {
 
         const requester_id = 4; // Default to requester user for demo
         
-        // Use a dummy sla_deadline, will be updated by stored procedure immediately after
         const [result] = await pool.query(`
             INSERT INTO tickets (ticket_number, title, description, category, priority, requester_id, sla_deadline)
-            VALUES (?, ?, ?, ?, ?, ?, NOW())
-        `, [ticket_number, title, description, category, priority, requester_id]);
+            VALUES (?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? HOUR))
+        `, [ticket_number, title, description, category, priority, requester_id, slaHours]);
 
         const ticket_id = result.insertId;
-
-        // Call stored procedure to set actual SLA deadline
-        await pool.query('CALL set_sla_deadline(?, ?)', [ticket_id, priority]);
 
         // Insert log
         await pool.query('INSERT INTO ticket_logs (ticket_id, action, performed_by, note) VALUES (?, ?, ?, ?)', 
@@ -227,10 +226,43 @@ exports.escalateTicket = async (req, res) => {
 // POST /api/tickets/sla/run-escalation - manually run SLA escalation procedure
 exports.runSLAEscalation = async (req, res) => {
     try {
-        await pool.query('CALL escalate_breached_tickets()');
+        await exports.processSLAEscalations();
         res.json({ message: 'SLA escalation processed successfully' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Database error' });
+    }
+};
+
+// Helper function to process escalations
+exports.processSLAEscalations = async () => {
+    try {
+        // 1. Find breached tickets
+        const [breached] = await pool.query(`
+            SELECT id, support_tier FROM tickets 
+            WHERE sla_deadline < NOW() 
+            AND status IN ('Open', 'In Progress')
+        `);
+
+        if (breached.length === 0) return;
+
+        // 2. Process each ticket
+        for (const ticket of breached) {
+            const newTier = ticket.support_tier === 'L1' ? 'L2' : 'L3';
+            
+            await pool.query(`
+                UPDATE tickets 
+                SET status = 'Escalated', support_tier = ? 
+                WHERE id = ?
+            `, [newTier, ticket.id]);
+
+            await pool.query(`
+                INSERT INTO ticket_logs (ticket_id, action, performed_by, note) 
+                VALUES (?, 'System Escalation', 1, ?)
+            `, [ticket.id, \`SLA Breached. Automatically escalated to next tier from \${ticket.support_tier}\`]);
+        }
+    } catch (error) {
+        console.error('Error processing SLA escalations in backend:', error);
+        throw error;
     }
 };

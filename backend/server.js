@@ -20,7 +20,8 @@ app.use('/api/tickets', ticketsRouter);
 setInterval(async () => {
     try {
         console.log('Running automatic SLA escalation procedure...');
-        await pool.query('CALL escalate_breached_tickets()');
+        const ticketController = require('./controllers/ticketController');
+        await ticketController.processSLAEscalations();
         console.log('SLA escalation finished.');
     } catch (error) {
         console.error('Error running automatic SLA escalation:', error);
